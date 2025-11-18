@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from sqlmodel import Session, text
 from dependencies.auth_dependencies import oauth2_scheme
 from fastapi.middleware.cors import CORSMiddleware
-from controllers import auth_controller, post_controller, users_controller
+from controllers import auth_controller, post_controller, report_controller, users_controller
 from core import database
 from models.seed import admingen
 from core.database import engine
@@ -49,5 +49,5 @@ app.add_middleware(
 app.include_router(auth_controller.router)
 app.include_router(users_controller.router)
 app.include_router(post_controller.router)
-
+app.include_router(report_controller.router)
 

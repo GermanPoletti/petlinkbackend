@@ -9,3 +9,9 @@ class NotOwnerError(Exception):
 
 class SessionAlreadyClosed(Exception):
     pass
+
+class ReportNotFoundException(Exception):
+    pass
+
+class ReportAlreadyReviewedException(Exception):
+    pass
