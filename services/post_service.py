@@ -144,7 +144,7 @@ def like_post(session: Session, post_id: int, user_id: int):
         raise e
  
 
-def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10):
+def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10) -> list[PostRead]:
     if not keyword:
         return []  
 
