@@ -39,6 +39,14 @@ def get_posts(session: SessionDep, filters: Annotated[PostFilters, Query()], cur
 def search_post(keyword: str, session: SessionDep, current_user: User = Depends(get_current_user)):
     return post_service.search_post(session=session, keyword= keyword)
 
+@router.get("/{user_id}", description="Retrives a list of post by his owner")
+def get_post_by_user(session: SessionDep, user_id: int, current_user: User = Depends(get_current_user)):
+    try:
+        return post_service.get_posts_by_user(session=session, user_id=user_id)
+    except PostNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 @router.get("/{post_id}", description="Retrieves a post by its ID.")
 def get_post_by_id(session: SessionDep, post_id: int, current_user: User = Depends(get_current_user)):
     try:

@@ -8,13 +8,6 @@ from exceptions import NotOwnerError
 from sqlalchemy.exc import SQLAlchemyError
 
 
-
-#TODO: get para publicaciones de un usuario especifico
-
-
-
-
-
 def create_post(session: Session, payload: PostCreate, user_id: int):
 
     post_data = payload.model_dump(exclude={"multimedia"}, exclude_unset=True)
@@ -31,6 +24,10 @@ def create_post(session: Session, payload: PostCreate, user_id: int):
 
     return PostRead.model_validate(post)
 
+def get_posts_by_user(session: Session, user_id: int) -> list[PostRead]:
+    posts = session.exec(select(Post).where(Post.user_id == user_id)).all()
+    
+    return [PostRead.model_validate(p) for p in posts]
 
 def get_posts(session: Session, filters: PostFilters, user: User):
     
