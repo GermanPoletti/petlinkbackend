@@ -117,27 +117,27 @@ def _remove_like(session: Session, post_id: int, user_id: int):
         session.delete(like)
 
 def like_post(session: Session, post_id: int, user_id: int):
-    if(session.get(Post, post_id)):
-        try:
-            existing_like = session.exec(
-                select(Like).where(Like.user_id == user_id, Like.post_id == post_id)
-            ).first()
-
-            if existing_like:
-                _remove_like(session, post_id, user_id)
-                detail = "like deleted"
-            else:
-                _give_like(session, post_id, user_id)
-                detail = "like given"
-
-            session.commit()
-            return {"detail": detail}
-
-        except SQLAlchemyError as e:
-            session.rollback()
-            raise e
-    else:
-        raise PostNotFoundException("Post not found")
+    post = session.get(Post, post_id)
+    
+    if not post or not post.is_active:
+        raise PostNotFoundException("Post doesn't exist or is inactive")
+    
+    try:
+        existing_like = session.exec(
+            select(Like).where(Like.user_id == user_id, Like.post_id == post_id)
+        ).first()
+        if existing_like:
+            _remove_like(session, post_id, user_id)
+            detail = "like deleted"
+        else:
+            _give_like(session, post_id, user_id)
+            detail = "like given"
+        session.commit()
+        return {"detail": detail}
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise e
+ 
 
 def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10):
     if not keyword:
