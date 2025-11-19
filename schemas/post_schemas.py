@@ -70,6 +70,7 @@ class PostRead(PostBase):
 class PostFilters(BaseModel):
     category: str | None = None
     city_id: int | None = None
+    province_id: int | None = None
     skip: int = 0
     limit: int= 10
-    most_liked: bool | None = None
+    most_liked: bool = False

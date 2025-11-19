@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from sqlmodel import Session, desc, func, select
 
 from exceptions.exceptions import PostNotFoundException
-from models import Like, Post, PostMultimedia, User, RoleEnum
+from models import Like, Post, PostMultimedia, User, RoleEnum, City
 from schemas import PostCreate, PostPatch, PostRead, PostFilters
 from exceptions import NotOwnerError
 from sqlalchemy.exc import SQLAlchemyError
@@ -43,10 +43,13 @@ def get_posts(session: Session, filters: PostFilters):
     if filters.city_id:
         conditions.append(Post.city_id == filters.city_id)
 
-   
+    if filters.province_id:
+        conditions.append(City.state_province_id == filters.province_id)
+
     query = (
         select(Post, func.count(Like.id).label("likes_count")) #type: ignore
         .join(Like, Like.post_id == Post.id, isouter=True)  #type: ignore
+        .join(City, City.id == Post.city_id)    # type: ignore
         .group_by(Post.id)  #type: ignore
     )
 
