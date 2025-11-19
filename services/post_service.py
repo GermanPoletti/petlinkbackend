@@ -7,8 +7,8 @@ from schemas import PostCreate, PostPatch, PostRead, PostFilters
 from exceptions import NotOwnerError
 from sqlalchemy.exc import SQLAlchemyError
 
-#TODO: cant like a inactive post
-#TODO: separar gets para q un admin traiga todos y un user solo activos
+
+
 #TODO: get para publicaciones de un usuario especifico
 
 
@@ -31,11 +31,19 @@ def create_post(session: Session, payload: PostCreate, user_id: int):
 
     return PostRead.model_validate(post)
 
-#TODO: return conteo de likes por post, usar model_validate
-def get_posts(session: Session, filters: PostFilters):
+
+def get_posts(session: Session, filters: PostFilters, user: User):
+    
 
     conditions = []
     skip, limit = filters.skip, filters.limit
+    
+    if user.role_id < RoleEnum.MODERATOR:
+        conditions.append(Post.is_active == True)
+    elif filters.show_only_active:
+        conditions.append(Post.is_active == True)
+    elif not filters.show_only_active:
+        conditions.append(Post.is_active == False)
 
     if filters.category:
         conditions.append(Post.category == filters.category)

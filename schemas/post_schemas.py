@@ -74,3 +74,4 @@ class PostFilters(BaseModel):
     skip: int = 0
     limit: int= 10
     most_liked: bool = False
+    show_only_active: bool | None = None

@@ -30,7 +30,7 @@ def create_post(
 
 @router.get("/", description="Retrieves a paginated list of posts, with optional skip and limit parameters.")
 def get_posts(session: SessionDep, filters: Annotated[PostFilters, Query()], current_user: User =Depends(get_current_user)):
-    posts = post_service.get_posts(session=session, filters=filters)
+    posts = post_service.get_posts(session=session, filters=filters, user = current_user)
     
     return {"posts": posts if posts else "No hay posts",
             "limit_reached": True if len(posts) < filters.limit else False}
