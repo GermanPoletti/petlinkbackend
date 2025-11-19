@@ -16,7 +16,6 @@ from services.mapper import map_ids_to_names, MapperError
 router = APIRouter(prefix="/posts", tags=["posts"])
 
 #TODO: hacer que las request y responses pidan y devuelvan nombres en vez de ids mediante funciones genericas
-#TODO: Search posts by keywords
 
 
 @router.post("/", description="Creates a post", response_model=PostRead)
@@ -66,7 +65,7 @@ def edit_post(session: SessionDep, post_id: int, post_data: PostPatch, current_u
     except PostNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-#TODO: Admin can delete even though its not owner
+
 @router.delete("/{post_id}", description="Deletes a post; allowed for the owner or an admin user.")
 def delete_post(session: SessionDep, post_id: int, current_user: User = Depends(get_current_user)):
     try:
