@@ -15,6 +15,7 @@ from .chat.chat import Chat
 from .chat.chat_message import ChatMessage
 from .agreement.agreement import Agreement
 from .user.active_tokens import ActiveToken
+from .enums import AgreementStatusEnum, PostTypeEnum, StatusUserEnum, RoleEnum
 
 __all__ = [
     "Role", "StatusUser", "PostType", "StatusAgreement",

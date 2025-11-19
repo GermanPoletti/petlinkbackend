@@ -1,18 +1,11 @@
 from datetime import datetime, timezone
-from sqlmodel import Session, select
+from sqlmodel import Session, desc, func, select
 
 from exceptions.exceptions import PostNotFoundException
-from models import Like, Post, PostMultimedia
-from models.enums import RoleEnum
-from models.user.user import User
-from schemas import PostCreate, PostPatch, PostRead 
+from models import Like, Post, PostMultimedia, User, RoleEnum, City
+from schemas import PostCreate, PostPatch, PostRead, PostFilters
 from exceptions import NotOwnerError
 from sqlalchemy.exc import SQLAlchemyError
-
-#TODO: cant like a inactive post
-#TODO: separar gets para q un admin traiga todos y un user solo activos
-#TODO: get para publicaciones de un usuario especifico
-
 
 
 def create_post(session: Session, payload: PostCreate, user_id: int):
@@ -31,14 +24,52 @@ def create_post(session: Session, payload: PostCreate, user_id: int):
 
     return PostRead.model_validate(post)
 
-
-#TODO: return conteo de likes por post, usar model_validate
-def get_posts(session: Session, skip: int = 0, limit: int = 10):
-    posts = session.exec(
-        select(Post).offset(skip).limit(limit)
-    ).all()
+def get_posts_by_user(session: Session, user_id: int) -> list[PostRead]:
+    posts = session.exec(select(Post).where(Post.user_id == user_id)).all()
     
-    return posts
+    return [PostRead.model_validate(p) for p in posts]
+
+def get_posts(session: Session, filters: PostFilters, user: User):
+    
+
+    conditions = []
+    skip, limit = filters.skip, filters.limit
+    
+    if user.role_id < RoleEnum.MODERATOR:
+        conditions.append(Post.is_active == True)
+    elif filters.show_only_active:
+        conditions.append(Post.is_active == True)
+    elif not filters.show_only_active:
+        conditions.append(Post.is_active == False)
+
+    if filters.category:
+        conditions.append(Post.category == filters.category)
+
+    if filters.city_id:
+        conditions.append(Post.city_id == filters.city_id)
+
+    if filters.province_id:
+        conditions.append(City.state_province_id == filters.province_id)
+
+    query = (
+        select(Post, func.count(Like.id).label("likes_count")) #type: ignore
+        .join(Like, Like.post_id == Post.id, isouter=True)  #type: ignore
+        .join(City, City.id == Post.city_id)    # type: ignore
+        .group_by(Post.id)  #type: ignore
+    )
+
+    if conditions:
+        query = query.where(*conditions)
+
+    if filters.most_liked:
+        query = query.order_by(desc("likes_count"))
+
+    posts_with_counts = session.exec(query.offset(skip).limit(limit)).all()
+
+    # posts_with_counts trae: (Post, likes_count)
+    posts = [p[0] for p in posts_with_counts]
+
+    return [PostRead.model_validate(p) for p in posts]
 
 def get_post_by_id(session: Session, post_id) -> PostRead:
     post = session.get(Post, post_id)
@@ -69,8 +100,8 @@ def delete_post(session: Session, post_id: int, user: User):
     if not post or not post.is_active:
         raise PostNotFoundException("Post doesn't exist or is already deleted")
     
-    if post.user_id != user_id and user.role_id != RoleEnum.ADMIN:
-        raise NotOwnerError("Cannot delete, user is not owner of the post neither admin")
+    if post.user_id != user_id and user.role_id < RoleEnum.MODERATOR:
+        raise NotOwnerError("Cannot delete, user is not owner of the post neither moderator or admin")
 
 
     post.is_active = False
@@ -91,24 +122,44 @@ def _remove_like(session: Session, post_id: int, user_id: int):
         session.delete(like)
 
 def like_post(session: Session, post_id: int, user_id: int):
-    if(session.get(Post, post_id)):
-        try:
-            existing_like = session.exec(
-                select(Like).where(Like.user_id == user_id, Like.post_id == post_id)
-            ).first()
+    post = session.get(Post, post_id)
+    
+    if not post or not post.is_active:
+        raise PostNotFoundException("Post doesn't exist or is inactive")
+    
+    try:
+        existing_like = session.exec(
+            select(Like).where(Like.user_id == user_id, Like.post_id == post_id)
+        ).first()
+        if existing_like:
+            _remove_like(session, post_id, user_id)
+            detail = "like deleted"
+        else:
+            _give_like(session, post_id, user_id)
+            detail = "like given"
+        session.commit()
+        return {"detail": detail}
+    except SQLAlchemyError as e:
+        session.rollback()
+        raise e
+ 
 
-            if existing_like:
-                _remove_like(session, post_id, user_id)
-                detail = "like deleted"
-            else:
-                _give_like(session, post_id, user_id)
-                detail = "like given"
+def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10) -> list[PostRead]:
+    if not keyword:
+        return []  
 
-            session.commit()
-            return {"detail": detail}
+    # construir query
+    query = (
+        select(Post)
+        .where(
+            Post.title.ilike(f"%{keyword}%") |   # type: ignore
+            Post.message.ilike(f"%{keyword}%")  # type: ignore
+        )
+        .offset(skip)
+        .limit(limit)
+    )
 
-        except SQLAlchemyError as e:
-            session.rollback()
-            raise e
-    else:
-        raise PostNotFoundException("Post not found")
+    posts = session.exec(query).all()
+
+    # si usas Pydantic / PostRead
+    return [PostRead.model_validate(p) for p in posts]

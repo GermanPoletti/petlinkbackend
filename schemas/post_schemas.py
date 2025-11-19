@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, computed_field
+from sqlmodel import Field
 
 class PostBase(BaseModel):
     title: str
@@ -56,11 +57,11 @@ class PostRead(PostBase):
     created_at: datetime
     updated_at: datetime | None
     deleted_at: datetime | None
-    likes: list[LikeRead] = []
+    likes: list[LikeRead] = Field(default=[], exclude=True)
 
-    @property
-    def likes_display(self):
-        return len(self.likes) or 0
+    @computed_field
+    def likes_count(self) -> int:
+        return len(self.likes)
 
     model_config = {
         "from_attributes": True
@@ -68,4 +69,9 @@ class PostRead(PostBase):
 
 class PostFilters(BaseModel):
     category: str | None = None
-    location: str | None = None
+    city_id: int | None = None
+    province_id: int | None = None
+    skip: int = 0
+    limit: int= 10
+    most_liked: bool = False
+    show_only_active: bool | None = None
