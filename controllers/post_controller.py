@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from core.database import SessionDep
 
 from dependencies.auth_dependencies import get_current_user
 from models import Post
 from models.user.user import User
-from schemas import PostCreate, PostPatch
+from schemas import PostCreate, PostPatch, PostFilters
 from schemas.post_schemas import PostRead
 from services import post_service
 from exceptions.exceptions import NotOwnerError, PostNotFoundException
@@ -16,7 +17,6 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 #TODO: hacer que las request y responses pidan y devuelvan nombres en vez de ids mediante funciones genericas
 #TODO: Search posts by keywords
-#TODO: add filters to the get post
 
 
 @router.post("/", description="Creates a post", response_model=PostRead)
@@ -29,16 +29,22 @@ def create_post(
     return post_service.create_post(session, post_data, current_user.id)
 
 @router.get("/", description="Retrieves a paginated list of posts, with optional skip and limit parameters.")
-def get_posts(session: SessionDep, skip: int = 0, limit: int = 10, current_user: User =Depends(get_current_user)):
-    return {"posts": post_service.get_posts(session, skip, limit),
-            "limit_reached": True if len(post_service.get_posts(session, skip, limit)) < limit else False}
+def get_posts(session: SessionDep, filters: Annotated[PostFilters, Query()], current_user: User =Depends(get_current_user)):
+    posts = post_service.get_posts(session=session, filters=filters)
+    
+    return {"posts": posts if posts else "No hay posts",
+            "limit_reached": True if len(posts) < filters.limit else False}
+
+@router.get("/search")
+def search_post(keyword: str, session: SessionDep, current_user: User = Depends(get_current_user)):
+    return post_service.search_post(session=session, keyword= keyword)
 
 @router.get("/{post_id}", description="Retrieves a post by its ID.")
 def get_post_by_id(session: SessionDep, post_id: int, current_user: User = Depends(get_current_user)):
     try:
         post = post_service.get_post_by_id(session, post_id)
         data = post.model_dump()
-        data["likes"] = post.likes_display
+        data["likes"] = post.likes_count
         return data
     except(PostNotFoundException):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post no encontrado")
@@ -69,7 +75,3 @@ def like_post(session: SessionDep, post_id: int, current_user: User = Depends(ge
         return post_service.like_post(session=session, post_id=post_id, user_id=current_user.id)
     except PostNotFoundException as e:
          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-@router.get("/search")
-def search_post(filters, current_user: User = Depends(get_current_user)):
-    pass
