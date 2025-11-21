@@ -96,16 +96,12 @@ def decode_token(token: str):
 
 def register_user(user_data: UserCreate, session: Session) -> User:
     new_user = User(
-        username = user_data.username,
-        first_name = user_data.first_name,
-        last_name = user_data.last_name,
-        email = user_data.email,
-        password_hash = encrypt_password(user_data.password),
-        photo_url = user_data.photo_url
+        email= user_data.email, 
+        password_hash = encrypt_password(user_data.password)
         )
     
     user_already_exists = session.exec(
-        select(User).where((User.username == new_user.username) | (User.email == new_user.email))
+        select(User).where((User.email == new_user.email))
     ).first()
     
     if user_already_exists:
@@ -150,7 +146,7 @@ def login(form_data: LoginData, session: Session) -> Token:
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_token(
         session= session,
-        data={"sub": user.username, "user_id": user.id},
+        data={"sub": user.email, "user_id": user.id},
         expires_delta=access_token_expires
     )
 

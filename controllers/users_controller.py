@@ -7,6 +7,7 @@ from models.enums import RoleEnum, StatusUserEnum
 from models.user.user import User
 from schemas.user_schemas import UserPatch, UserRead
 from services import user_service
+from sqlalchemy.orm import joinedload
 
 #TODO: gestionar excepciones y respuestas http
 #TODO: gestionar logout al deletear usuario
@@ -35,13 +36,15 @@ def get_all_users(session: SessionDep, current_user: User = require_role(RoleEnu
     return user_service.get_all_users(session=session)
 
 @router.get("/me", response_model=UserRead)
-def me(current_user: User = Depends(get_current_user)):
+def me(session: SessionDep,current_user: User = Depends(get_current_user)):
     if(_check_user_is_active(current_user)):
-        return UserRead.model_validate(current_user.model_dump())
+        return UserRead.model_validate(
+            session.get(User, current_user.id, options=[joinedload(User.user_info)]).model_dump() # type: ignore
+            )
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-@router.patch("/me")
+@router.patch("/me", response_model=UserRead)
 def update_me(
     session: SessionDep, 
     current_user: User = Depends(get_current_user), 
