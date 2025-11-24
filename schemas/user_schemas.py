@@ -1,12 +1,20 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from email_validator import validate_email, EmailNotValidError
 import datetime
 
 class UserBase(BaseModel):
     email: EmailStr
 
+    @field_validator("email")
+    def validate_real_email(cls, v):
+        try:
+            return validate_email(v, check_deliverability=True).normalized
+        except EmailNotValidError as e:
+            raise ValueError(str(e))
+
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8)
 
 class UserInfoRead(BaseModel):
     username: str | None = None
