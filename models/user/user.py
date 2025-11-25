@@ -20,12 +20,9 @@ if TYPE_CHECKING:
 class User(SQLModel, TimestampMixin, table=True):
     __tablename__: str = "users"
     id: int | None = Field(default=None, primary_key=True)
-    username: str = Field(max_length=50, unique=True, index=True)
-    first_name: str = Field(max_length=50)
-    last_name: str = Field(max_length=50)
     password_hash: str = Field(max_length=255)
     email: str = Field(max_length=255, unique=True, index=True)
-    photo_url: str | None = Field(default=None, sa_column=Column(TEXT))
+    
     role_id: int = Field(default=RoleEnum.USER ,foreign_key="roles.id", ondelete="RESTRICT")
     status_id: int = Field(default=StatusUserEnum.ACTIVE ,foreign_key="status_users.id", ondelete="RESTRICT")
     deleted_at: datetime | None = Field(default=None, index=True)
@@ -33,7 +30,9 @@ class User(SQLModel, TimestampMixin, table=True):
     role: Optional["Role"] = Relationship(back_populates="users")
     status: Optional["StatusUser"] = Relationship(back_populates="users")
     posts: List["Post"] = Relationship(back_populates="user", cascade_delete=True)
-    
+    user_info: Optional["UserProfiles"] = Relationship(back_populates="user")
+
+
     initiated_agreements: List["Agreement"] = Relationship(
         back_populates="initiator",
         sa_relationship_kwargs={"foreign_keys": "[Agreement.initiator_id]"}
@@ -67,3 +66,15 @@ class User(SQLModel, TimestampMixin, table=True):
     @classmethod
     def validate_status(cls, value):
         return StatusUserEnum(value)
+
+class UserProfiles(SQLModel, table = True):
+    __tablename__: str = "user_profiles"
+
+    user_id: int = Field(primary_key=True, foreign_key="users.id")
+    username: str | None = Field(default=None, max_length=50, unique=True, index=True)
+    first_name: str | None = Field(default=None, max_length=50)
+    last_name: str | None = Field(default=None, max_length=50)
+    photo_url: str | None = Field(default=None, sa_column=Column(TEXT))
+    
+    user: Optional["User"] = Relationship(back_populates="user_info")
+

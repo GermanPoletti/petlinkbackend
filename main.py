@@ -34,7 +34,7 @@ app = FastAPI(lifespan=lifespan)
 
 #CORS
 origins = [
-    "http://localhost"
+    "*",
 ]
 
 app.add_middleware(
