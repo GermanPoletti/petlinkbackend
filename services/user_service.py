@@ -27,37 +27,6 @@ def _mark_user_as_deleted(user: User, session: Session) -> dict[str, str]:
     session.commit()
     return {"detail": "Usuario eliminado exitosamente"}
 
-# def patch_self(user_id: int, session: Session, user_data: UserPatch) -> UserRead:
-#     user = session.get(User, user_id)
-#     update_data = user_data.model_dump(exclude_unset=True)
-
-#     if not user:
-#         raise UserNotFoundException(f"User with id {user_id} not found")
-
-#     for key, value in update_data.items():
-
-#         if getattr(user, key) == value:
-#             continue
-        
-#         elif key == "password":
-#             #TODO: separate password change with another endpoint that sends a verification code
-#             value = encrypt_password(value)
-#         elif key == "email":
-#             try:
-#                 EmailCheck(email=value)
-#             except ValidationError:
-#                 raise ValueError(f"{value} no es un email válido")
-            
-#             if session.exec(select(User).where(User.email == value)).first():
-#                 raise ValueError("Email already exists")
-    
-#         setattr(user.user_info, key, value)
-    
-#     user.updated_at = datetime.now(timezone.utc)
-#     session.commit()
-#     session.refresh(user)
-    
-#     return UserRead.model_validate(user, from_attributes=True)
 
 def patch_self(user_id: int, session: Session, user_data: UserPatch) -> UserRead:
     user = session.get(User, user_id) 

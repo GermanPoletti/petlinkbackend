@@ -18,7 +18,6 @@ password_hash = PasswordHash.recommended()
 def invalidate_token(session: Session, token: str) -> TokensBlacklist:
     decoded_token = decode_token(token)
 
-    #TODO: raise custom exception when token is already blacklisted
 
     if session.exec(select(TokensBlacklist).where(TokensBlacklist.jti == decoded_token["jti"])).first():
         raise SessionAlreadyClosed("The session you want to close is alredy closed")
