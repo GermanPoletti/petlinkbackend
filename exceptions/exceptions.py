@@ -15,3 +15,12 @@ class ReportNotFoundException(Exception):
 
 class ReportAlreadyReviewedException(Exception):
     pass
+    
+class ChatNotFoundException(Exception):
+    pass
+
+class ChatAlreadyExistsException(Exception):
+    pass
+
+class ChatClosedException(Exception):
+    pass

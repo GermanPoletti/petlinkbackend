@@ -40,8 +40,12 @@ def patch_self(user_id: int, session: Session, user_data: UserPatch) -> UserRead
         if key in ["password", "email"]:
             if key == "password":
                 #TODO: separate password change with another endpoint that sends a verification code
+                #FIXME: PASSWORD CAN BE EMPTY STRING
                 value = encrypt_password(value)
+                setattr(user, "password_hash", value)
+                continue
             elif key == "email":
+                #FIXME: EMAIL NOT VALIDATED
                 if session.exec(select(User).where(User.email == value, User.id != user_id)).first():
                     raise ValueError("Email already exists")
             
