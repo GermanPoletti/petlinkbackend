@@ -12,6 +12,14 @@ class UserBase(BaseModel):
         except EmailNotValidError as e:
             raise ValueError(str(e))
 
+class UserFilters(BaseModel):
+    role: str | None = None
+    email: str | None = None
+    username: str | None = None
+    model_config = {
+        "from_attributes": True
+    }
+
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8)
@@ -27,7 +35,7 @@ class UserInfoRead(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: EmailStr
-    
+    help_count: int
     role_id: int
     status_id: int
     
@@ -45,5 +53,12 @@ class UserPatch(BaseModel):
     last_name: str | None = None
     email: EmailStr | None = None
     photo_url: str | None = None
-    password: str | None = None
+    password: str | None = Field(default=None, min_length=8)
+
+    @field_validator("email")
+    def validate_real_email(cls, v):
+        try:
+            return validate_email(v, check_deliverability=True).normalized
+        except EmailNotValidError as e:
+            raise ValueError(str(e))
 

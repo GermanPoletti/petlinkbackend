@@ -3,6 +3,8 @@ from typing import Optional, List
 from pydantic import BaseModel, Field as PydanticField
 from enum import IntEnum
 
+from schemas.user_schemas import UserRead
+
 
 class AgreementStatusEnum(IntEnum):
     PENDING = 1
@@ -72,6 +74,9 @@ class ChatRead(ChatBase):
     model_config = {"from_attributes": True}
 
 
+class ChatReadWithUser(ChatRead):
+    initiator: Optional[UserRead] = None
+    receiver: Optional[UserRead] = None
 # ------------------------------------------------------------------
 # 4. Chat completo (con post, usuarios y mensajes) → para el detalle
 # ------------------------------------------------------------------
@@ -114,6 +119,7 @@ class ChatMessageRead(ChatMessageBase):
 # Filtro para listar chats del usuario logueado
 # ------------------------------------------------------------------
 class ChatFilters(BaseModel):
+    post_id: int | None = None
     only_active: Optional[bool] = None     # None = todos, True = solo abiertos, False = solo cerrados
     status_id: Optional[AgreementStatusEnum] = None
     skip: int = 0
