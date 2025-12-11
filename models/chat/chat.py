@@ -1,5 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship, Index
+from sqlmodel import TEXT, Column, SQLModel, Field, Relationship, Index
 from ..base import TimestampMixin
 from datetime import datetime
 
@@ -10,24 +10,37 @@ if TYPE_CHECKING:
 
 class Chat(SQLModel, TimestampMixin, table=True):
     __tablename__: str = "chats"
-    id: Optional[int] = Field(default=None, primary_key=True)
+
+    id: int | None = Field(default=None, primary_key=True)
     post_id: int = Field(foreign_key="posts.id", ondelete="CASCADE")
     initiator_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
     receiver_id: int = Field(foreign_key="users.id", ondelete="CASCADE")
 
+    status_id: int = Field(default=1, foreign_key="status_agreements.id")
+    closing_date: datetime | None = Field(default=None)
+    resolution_note: str | None = Field(default=None, sa_column=Column(TEXT))
+    is_active: bool = Field(default=True)
+
+    # Relaciones
     post: Optional["Post"] = Relationship(back_populates="chats")
     initiator: Optional["User"] = Relationship(
         back_populates="initiated_chats",
-        sa_relationship_kwargs={"foreign_keys": "Chat.initiator_id"}
+        sa_relationship_kwargs={
+            "foreign_keys": "Chat.initiator_id",   # ← CLAVE
+            "lazy": "joined"
+        }
     )
+
     receiver: Optional["User"] = Relationship(
         back_populates="received_chats",
-        sa_relationship_kwargs={"foreign_keys": "Chat.receiver_id"}
+        sa_relationship_kwargs={
+            "foreign_keys": "Chat.receiver_id",    # ← CLAVE
+            "lazy": "joined"
+        }
     )
-    messages: List["ChatMessage"] = Relationship(back_populates="chat", cascade_delete=True)
+    messages: List["ChatMessage"] = Relationship(back_populates="chat")
 
+    # Solo este si querés estar paranoico con la unicidad
     __table_args__ = (
-        Index('uq_post_initiator', 'post_id', 'initiator_id', unique=True),
-        Index('idx_chats_receiver', 'receiver_id'),
-        Index('idx_chats_post_receiver', 'post_id', 'receiver_id'),
+        Index("uq_post_initiator", "post_id", "initiator_id", unique=True),
     )

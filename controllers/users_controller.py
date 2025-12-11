@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from datetime import date
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from core.database import SessionDep
 from dependencies.auth_dependencies import get_current_user
 from dependencies.permissions_dependencies import require_role
@@ -7,9 +9,12 @@ from models.enums import RoleEnum, StatusUserEnum
 from models.user.user import User
 from schemas.user_schemas import UserPatch, UserRead
 from services import user_service
+from sqlalchemy.orm import joinedload
+
+from utils.generics import count_rows
 
 #TODO: gestionar excepciones y respuestas http
-#TODO: gestionar logout al deletear usuario
+
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -17,7 +22,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 def _check_user_is_active(user: User | None = None, user_id: int | None = None, session: SessionDep | None = None):
 
     if (user is None and user_id is None) or (user is not None and user_id is not None):
-            raise ValueError("You have to give either user or user_id")
+        raise ValueError("You have to give either user or user_id")
     
     if(user_id and not session):
         raise ValueError("Session parameter requiered")
@@ -26,22 +31,76 @@ def _check_user_is_active(user: User | None = None, user_id: int | None = None, 
     if(user):
         return True if user.status_id == StatusUserEnum.ACTIVE else False
     elif(user_id and session):
-        user_service.get_user_by_id(user_id = user_id, session = session)
-        pass
-    
+        return True if user_service.get_user_by_id(user_id = user_id, session = session).status_id == StatusUserEnum.ACTIVE else False 
+        
 
 @router.get("/")
 def get_all_users(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
+   
     return user_service.get_all_users(session=session)
 
+
+# controllers/users_controller.py
+
+from fastapi import Request  # ← NUEVO IMPORT
+
+@router.get("/export/excel")
+def export_users_to_excel(
+    session: SessionDep,
+    request: Request,  # ← AÑADIMOS ESTO
+    date_from: date = Query(..., description="Fecha desde (YYYY-MM-DD)"),
+    date_to: date = Query(..., description="Fecha hasta (YYYY-MM-DD)"),
+    current_user: User = require_role(RoleEnum.ADMIN),
+):
+    if date_from > date_to:
+        raise HTTPException(status_code=400, detail="La fecha inicial no puede ser mayor que la final")
+
+    excel_file = user_service.export_users_excel_service(date_from, date_to, session)
+
+    filename = f"usuarios_{date_from}_a_{date_to}.xlsx"
+
+    # TRUCO MÁGICO para que descargue en el navegador real
+    user_agent = request.headers.get("user-agent", "").lower()
+    
+    if "mozilla" in user_agent or "chrome" in user_agent or "safari" in user_agent:
+        # Es un navegador → forzamos descarga
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Access-Control-Expose-Headers": "Content-Disposition",  # importante para CORS si usas frontend
+            }
+        )
+    else:
+        # Es Swagger/Postman → devolvemos normal (para que no se quebre)
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+@router.get("/role")
+def get_user_by_role(role: str ,session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN) ):
+    print("AAAAAAAAAAA")
+    return user_service.get_user_by_role(session=session, role = role)
+
+@router.get("/count")
+def get_users_count(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
+    filters = {
+        "status_id": StatusUserEnum.ACTIVE
+    }
+    return count_rows(session=session, model = User, filter_conditions=filters)
+
 @router.get("/me", response_model=UserRead)
-def me(current_user: User = Depends(get_current_user)):
+def me(session: SessionDep,current_user: User = Depends(get_current_user)):
     if(_check_user_is_active(current_user)):
-        return UserRead.model_validate(current_user.model_dump())
+        return session.get(User, current_user.id, options=[joinedload(User.user_info)]) # type: ignore
+            
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-@router.patch("/me")
+@router.patch("/me", response_model=UserRead)
 def update_me(
     session: SessionDep, 
     current_user: User = Depends(get_current_user), 
@@ -61,7 +120,7 @@ def delete_me(session: SessionDep, current_user: User = Depends(get_current_user
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or already deleted")
 
-#TODO: Change status too
+
 @router.patch("/{user_id}/role", 
         responses={
             status.HTTP_404_NOT_FOUND: {"description": "User not found"}
