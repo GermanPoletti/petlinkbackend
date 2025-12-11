@@ -86,6 +86,9 @@ def get_user_chats(session: Session, user_id: int, filters: ChatFilters) -> List
         )
     )
 
+    if filters.post_id:
+        query = query.where(Chat.post_id == filters.post_id)
+
     if filters.only_active is not None:
         query = query.where(Chat.is_active == filters.only_active)
 
@@ -95,7 +98,7 @@ def get_user_chats(session: Session, user_id: int, filters: ChatFilters) -> List
     # Ahora sí: desc y asc están importados
     query = query.order_by(desc(Chat.updated_at))
     query = query.offset(filters.skip).limit(filters.limit)
-
+    query = query.where(Chat.status_id == AgreementStatusEnum.PENDING)
     return session.exec(query).all()   # type: ignore
 
 
@@ -132,13 +135,19 @@ def get_chat_detail(session: Session, chat_id: int, requesting_user_id: int) -> 
 
     # Perfiles de usuario
     initiator_profile = session.get(UserProfiles, chat.initiator_id)
+    
     receiver_profile = session.get(UserProfiles, chat.receiver_id)
-
     return ChatDetailRead(
         **chat.model_dump(),
         post_title=chat.post.title if chat.post else None,
-        initiator_username=initiator_profile.username if initiator_profile else None,
-        receiver_username=receiver_profile.username if receiver_profile else None,
+        initiator_username = (
+        getattr(initiator_profile, "username", None) or 
+        getattr(chat.initiator, "email", "Usuario desconocido")
+        ), 
+        receiver_username=(
+        getattr(receiver_profile, "username", None) or 
+        getattr(chat.receiver, "email", "Usuario desconocido")
+        ),
         messages=messages  # ← ahora es List[ChatMessageRead]
     )
 
@@ -199,6 +208,12 @@ def resolve_chat(
     chat.resolution_note = (resolution_note or "").strip()[:500] or None
 
     if completed:
+        if chat.post.post_type_id == 2: # type: ignore
+            initiator = session.get(User, chat.initiator_id)
+            if initiator:
+                initiator.help_count = (initiator.help_count or 0) + 1
+                session.add(initiator)
+
         post = session.get(Post, chat.post_id)
         if post:
             post.is_active = False

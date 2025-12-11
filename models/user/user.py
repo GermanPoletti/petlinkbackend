@@ -26,6 +26,7 @@ class User(SQLModel, TimestampMixin, table=True):
     role_id: int = Field(default=RoleEnum.USER ,foreign_key="roles.id", ondelete="RESTRICT")
     status_id: int = Field(default=StatusUserEnum.ACTIVE ,foreign_key="status_users.id", ondelete="RESTRICT")
     deleted_at: datetime | None = Field(default=None, index=True)
+    help_count: int = Field(default=0)
 
     role: Optional["Role"] = Relationship(back_populates="users")
     status: Optional["StatusUser"] = Relationship(back_populates="users")

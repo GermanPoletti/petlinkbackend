@@ -1,36 +1,3 @@
-"""
-from fastapi import APIRouter, Depends
-
-from core.database import SessionDep 
-from dependencies.auth_dependencies import get_current_user
-from models import User
-
-router = APIRouter(prefix="/chats")
-
-def initialize_chat(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def send_message(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def edit_message(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def delete_message(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def close_chat(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def get_messages(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-def get_chats(session: SessionDep, current_user: User = Depends(get_current_user)):
-    pass
-
-"""
-
-# routers/chat_router.py
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
 
@@ -40,7 +7,7 @@ from models.user.user import User
 from models.chat.chat import Chat
 from models.post.post import Post
 from schemas.chats_schemas import (
-    ChatCreate, ChatResolve, ChatRead, ChatDetailRead,
+    ChatCreate, ChatReadWithUser, ChatResolve, ChatRead, ChatDetailRead,
     ChatMessageCreate, ChatMessageRead, ChatFilters
 )
 from services import chat_service
@@ -63,7 +30,7 @@ def create_chat(
         return chat_service.create_chat(
             session=session,
             post_id=chat_data.post_id,
-            initiator_user_id=current_user.id
+            initiator_user_id=current_user.id # type: ignore
         )
     except PostNotFoundException:
         raise HTTPException(status_code=404, detail="Publicación no encontrada o no está activa")
@@ -79,7 +46,7 @@ def create_chat(
 # ------------------------------------------------------------------
 # 2. Mis chats (abiertos y cerrados)
 # ------------------------------------------------------------------
-@router.get("/me", response_model=list[ChatRead])
+@router.get("/me", response_model=list[ChatReadWithUser])
 def get_my_chats(
     session: SessionDep,
     filters: Annotated[ChatFilters, Query()],
@@ -90,10 +57,21 @@ def get_my_chats(
     """
     chats = chat_service.get_user_chats(
         session=session,
-        user_id=current_user.id,
+        user_id=current_user.id, # type: ignore
         filters=filters
     )
-    return chats
+    chats_with_users = []
+    for chat in chats:
+        counterpart = session.get(User, chat.receiver_id if chat.initiator_id == current_user.id else chat.initiator_id)
+        if(counterpart):
+            chat_data = ChatReadWithUser(
+                **chat.model_dump(),
+                initiator=None,
+                receiver=counterpart # type: ignore
+                )
+            chats_with_users.append(chat_data)
+        
+    return chats_with_users
 
 
 # ------------------------------------------------------------------
@@ -112,7 +90,7 @@ def get_chat_detail(
         return chat_service.get_chat_detail(
             session=session,
             chat_id=chat_id,
-            requesting_user_id=current_user.id
+            requesting_user_id=current_user.id # type: ignore
         )
     except ChatNotFoundException:
         raise HTTPException(status_code=404, detail="Chat no encontrado")
@@ -134,7 +112,7 @@ def send_message(
         return chat_service.send_message(
             session=session,
             chat_id=chat_id,
-            sender_user_id=current_user.id,
+            sender_user_id=current_user.id, # type: ignore
             message_text=message_data.message
         )
     except ChatNotFoundException:
@@ -164,7 +142,7 @@ def resolve_chat(
         return chat_service.resolve_chat(
             session=session,
             chat_id=chat_id,
-            requesting_user_id=current_user.id,
+            requesting_user_id=current_user.id, # type: ignore
             completed=resolve_data.completed,
             resolution_note=resolve_data.resolution_note
         )

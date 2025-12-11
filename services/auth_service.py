@@ -141,16 +141,16 @@ def login(form_data: LoginData, session: Session) -> Token:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User is not active",
         )
-
+    print("----------------------- ", user.role)
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_token(
         session= session,
-        data={"sub": user.email, "user_id": user.id},
+        data={"sub": user.email, "user_id": user.id, "role": user.role.name},
         expires_delta=access_token_expires
     )
+    expires_at = datetime.now(timezone.utc) + access_token_expires
 
-
-    return Token(access_token=access_token)
+    return Token(access_token=access_token, user_id = user.id, expires_at = int(expires_at.timestamp() * 1000),)
       
 def logout(token: str, session: Session):
     

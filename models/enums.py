@@ -12,7 +12,7 @@ class StatusUserEnum(IntEnum):
 
 class PostTypeEnum(IntEnum):
     OFERTA = 1
-    NECESIDAD = 2
+    PROPUESTAS = 2
 
 class AgreementStatusEnum(IntEnum):
     PENDING = 1

@@ -1,5 +1,6 @@
 from sqlmodel import Session, select
 from models import Report, User
+from models.post.post import Post
 from schemas import ReportCreate, ReportRead
 from exceptions import ReportNotFoundException, ReportAlreadyReviewedException
 from services import post_service
@@ -20,7 +21,13 @@ def create_report(session: Session, payload: ReportCreate, user_id: int):
 
 #TODO: Separate get_all in get all not reviewed and get all reviewed
 def get_all_reports(session: Session):
-    reports = session.exec(select(Report)).all()
+    # reports = session.exec(select(Report).join(Report.post).where(Report.is_reviewed == False).where(Report.post.is_active == True)).all()
+    reports = session.execute(
+    select(Report).join(Report.post).filter(
+        Report.is_reviewed == False,
+        Post.is_active == True
+    )
+    ).scalars().all()
     if not reports:
         raise ReportNotFoundException("Reports not found")
 
