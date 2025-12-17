@@ -137,7 +137,7 @@ def patch_user(
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail=str(e))
     
 @router.delete("/{user_id}")
-def delete_user(user_id: int, session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):  
+def delete_user(user_id: int, session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR)):  
     if(_check_user_is_active): 
         return user_service.delete_user_by_admin(user_id=user_id, session=session)
     else:
