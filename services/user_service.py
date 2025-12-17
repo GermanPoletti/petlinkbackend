@@ -92,9 +92,7 @@ def count_all_users(session: Session):
     return count
 
 def get_user_by_role(session:Session, role:str):
-    
-
-    return session.exec(select(User).where(User.role_id == enums.RoleEnum[role].value)).all()
+    return session.exec(select(User).where(User.role_id == enums.RoleEnum[role.upper()].value)).all()
 
 
 
@@ -141,9 +139,23 @@ def delete_self(user_id: int, session: Session) -> dict[str, str]:
 
     return _mark_user_as_deleted(user, session)
 
-def get_all_users(session: Session) -> list[UserRead]:
-    users = session.exec(select(User).options(joinedload(User.user_info))).all() # type: ignore
+def get_user_rank(session: Session, user_id: int):
+    subq = (
+        select(
+            User.id,
+            func.row_number().over(order_by=User.help_count.desc()).label("rank")
+        ).subquery()
+    )
+    stmt = select(subq.c.rank).where(subq.c.id == user_id)
+    position = session.exec(stmt).one()
+    return position
     
+
+def get_all_users(session: Session, user: User) -> list[UserRead]:
+    if user.role_id == 3:
+        users = session.exec(select(User).where(User.status_id == StatusUserEnum.ACTIVE).options(joinedload(User.user_info))).all() # type: ignore
+    elif user.role_id == 2:
+        users = session.exec(select(User).where(User.role_id==1).where(User.status_id == StatusUserEnum.ACTIVE).options(joinedload(User.user_info))).all() # type: ignore
     return [UserRead.model_validate(u) for u in users]
 
 def get_user_by_id(user_id: int, session: Session) -> UserRead:

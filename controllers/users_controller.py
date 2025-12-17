@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status, Query
 from fastapi.responses import StreamingResponse
 from core.database import SessionDep
 from dependencies.auth_dependencies import get_current_user
@@ -35,14 +35,9 @@ def _check_user_is_active(user: User | None = None, user_id: int | None = None, 
         
 
 @router.get("/")
-def get_all_users(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
-   
-    return user_service.get_all_users(session=session)
+def get_all_users(session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR)):
+    return user_service.get_all_users(session=session, user = current_user)
 
-
-# controllers/users_controller.py
-
-from fastapi import Request  # ← NUEVO IMPORT
 
 @router.get("/export/excel")
 def export_users_to_excel(
@@ -80,13 +75,17 @@ def export_users_to_excel(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
 
+
+@router.get("/ranking")
+def get_user_rank(session: SessionDep,current_user: User = Depends(get_current_user)):
+    return user_service.get_user_rank(session = session, user_id = current_user.id)
+
 @router.get("/role")
-def get_user_by_role(role: str ,session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN) ):
-    print("AAAAAAAAAAA")
+def get_user_by_role(role: str ,session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR) ):
     return user_service.get_user_by_role(session=session, role = role)
 
 @router.get("/count")
-def get_users_count(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
+def get_users_count(session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR)):
     filters = {
         "status_id": StatusUserEnum.ACTIVE
     }
