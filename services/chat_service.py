@@ -98,7 +98,7 @@ def get_user_chats(session: Session, user_id: int, filters: ChatFilters) -> List
     # Ahora sí: desc y asc están importados
     query = query.order_by(desc(Chat.updated_at))
     query = query.offset(filters.skip).limit(filters.limit)
-    query = query.where(Chat.status_id == AgreementStatusEnum.PENDING)
+    # query = query.where(Chat.status_id == AgreementStatusEnum.PENDING)
     return session.exec(query).all()   # type: ignore
 
 
