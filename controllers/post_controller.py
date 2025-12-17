@@ -53,7 +53,7 @@ async def validate_file(file: UploadFile | None):
 
 
 @router.get("/count")
-def get_posts_count(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
+def get_posts_count(session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR)):
     filters = {
         "is_active": 1
     }
@@ -78,7 +78,9 @@ async def create_post(
     return post
 
 
-
+@router.get("/liked")
+def is_liked_by_user(session: SessionDep, post_id: int, current_user: User = Depends(get_current_user)):
+    return post_service.is_liked_by_user(session = session, post_id = post_id, user_id = current_user.id) # type: ignore
 
 @router.get("/", description="Retrieves a paginated list of posts, with optional skip and limit parameters.")
 def get_posts(session: SessionDep, filters: Annotated[PostFilters, Query()], current_user: User =Depends(get_current_user)):
@@ -100,12 +102,11 @@ def get_post_by_user(session: SessionDep, user_id: int, current_user: User = Dep
 @router.get("/{post_id}", description="Retrieves a post by its ID.", response_model=PostRead)
 def get_post_by_id(session: SessionDep, post_id: int, current_user: User = Depends(get_current_user)):
     try:
-        post = post_service.get_post_by_id(session, post_id)
-        data = post.model_dump()
-        data["likes_count"] = post.likes_count
-        return data
+        return post_service.get_post_by_id(session, post_id)
     except(PostNotFoundException):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post no encontrado")
+
+
 
 @router.patch("/{post_id}", description="Updates a post; only allowed if the current user is the owner.")
 async def edit_post(
