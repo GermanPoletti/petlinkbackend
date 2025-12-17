@@ -59,6 +59,16 @@ def create_post(session: Session, payload: PostCreate, user_id: int, file_url: s
     session.refresh(post)
     return PostRead.model_validate(post)
 
+def is_liked_by_user(session: Session, post_id: int, user_id: int):
+    like = session.exec(select(Like).where(Like.post_id == post_id).where(Like.user_id == user_id)).first()
+
+    if like:
+        return True
+    else:
+        return False
+
+
+
 
 def get_posts_by_user(session: Session, user_id: int) -> list[PostRead]:
     posts = session.exec(select(Post).where(Post.user_id == user_id)).all()
@@ -74,7 +84,7 @@ def get_posts(session: Session, filters: PostFilters, user: User):
     if user.role_id < RoleEnum.MODERATOR:
         conditions.append(Post.is_active == True)
     else:
-        if filters.show_only_active is True:
+        if filters.show_only_active is True or filters.show_only_active is None:
             conditions.append(Post.is_active == True)
         elif filters.show_only_active is False:
             conditions.append(Post.is_active == False)
@@ -160,7 +170,31 @@ def get_post_by_id(session: Session, post_id) -> PostRead:
     post = session.get(Post, post_id)
     if not post:
         raise PostNotFoundException
-    return PostRead.model_validate(post)
+
+    likes_count = len(post.likes)
+
+    if post.city and post.city.state_province:
+        city_name = f"{post.city.name}, {post.city.state_province.name}"
+    elif post.city:
+        city_name = post.city.name
+    else:
+        city_name = "Sin ubicación"    
+    if post.user and post.user.user_info and post.user.user_info.username:
+        username = post.user.user_info.username
+    elif post.user and not post.user.user_info:
+        username = post.user.email
+     
+    validated = PostRead.model_validate(post)
+    validated = validated.model_copy(update={
+        "likes_count": likes_count,
+        "city_name": city_name if post.city else "Sin ubicación",  # ← ahora post.city SÍ existe
+        "username": (
+            getattr(getattr(getattr(post, "user", None), "user_info", None), "username", None)
+            or getattr(getattr(post, "user", None), "email", "Usuario eliminado")
+        )
+    })
+    
+    return validated
 
 def patch_post(session: Session, post_id: int, payload: PostPatch, user_id: int, file_url: str | None = None):
     # Convierte el payload en un diccionario, excluyendo el campo multimedia
