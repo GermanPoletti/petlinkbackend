@@ -81,13 +81,15 @@ def get_posts(session: Session, filters: PostFilters, user: User):
     conditions = []
     skip, limit = filters.skip, filters.limit
     
-    if user.role_id < RoleEnum.MODERATOR:
+    # if user.role_id < RoleEnum.MODERATOR:
+    #     conditions.append(Post.is_active == True)
+    # else:
+    if filters.show_only_active is True:
         conditions.append(Post.is_active == True)
-    else:
-        if filters.show_only_active is True or filters.show_only_active is None:
-            conditions.append(Post.is_active == True)
-        elif filters.show_only_active is False:
-            conditions.append(Post.is_active == False)
+    elif filters.show_only_active is False:
+        conditions.append(Post.is_active == False)
+    elif filters.show_only_active is None:
+        pass
 
     if filters.category:
         conditions.append(Post.category == filters.category)
