@@ -28,8 +28,6 @@ def get_all_reports(session: Session):
         Post.is_active == True
     )
     ).scalars().all()
-    if not reports:
-        raise ReportNotFoundException("Reports not found")
 
     return [
         ReportRead.model_validate(r, from_attributes=True) for r in reports
@@ -47,7 +45,7 @@ def get_report_by_id(session: Session, report_id: int):
 
 def approve_report(session: Session, report_id: int, user: User):
     report = session.get(Report, report_id)
-
+    
     if not report:
         raise ReportNotFoundException("Report not found")
     if report.is_reviewed:
@@ -57,7 +55,10 @@ def approve_report(session: Session, report_id: int, user: User):
 
     post_service.delete_post(session=session, post_id=post_id, user=user)
     report.is_reviewed = True
-
+    allReports = session.exec(select(Report).where(Report.post_id == report.post_id)).all()
+    if allReports:
+        for report in allReports:
+            report.is_reviewed = True
     session.commit()
     session.refresh(report)
 

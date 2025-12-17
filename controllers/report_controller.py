@@ -15,7 +15,7 @@ from utils.generics import count_rows
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/count")
-def reports_count(session: SessionDep, current_user: User = require_role(RoleEnum.ADMIN)):
+def reports_count(session: SessionDep, current_user: User = require_role(RoleEnum.MODERATOR)):
     filters = {
         "is_reviewed": False
     }
