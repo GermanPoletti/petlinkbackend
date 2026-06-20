@@ -12,7 +12,6 @@ from schemas import PostCreate, PostPatch, PostFilters, PostRead
 from services import post_service
 
 from utils.catbox_service import upload_to_catbox
-from utils.mapper import map_ids_to_names, MapperError
 from utils.generics import count_rows
 from exceptions.exceptions import NotOwnerError, PostNotFoundException
 

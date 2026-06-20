@@ -2,9 +2,6 @@ from .core.role import Role
 from .core.status_user import StatusUser
 from .core.post_type import PostType
 from .core.status_agreement import StatusAgreement
-from .location.country import Country
-from .location.state_province import StateProvince
-from .location.city import City
 from .user.user import User, UserProfiles
 from .user.tokens_blacklist import TokensBlacklist
 from .post.post import Post
@@ -19,8 +16,8 @@ from .enums import AgreementStatusEnum, PostTypeEnum, StatusUserEnum, RoleEnum
 
 __all__ = [
     "Role", "StatusUser", "PostType", "StatusAgreement",
-    "Country", "StateProvince", "City",
     "User", "UserProfiles", "TokensBlacklist",
     "Post", "PostMultimedia", "Like", "Report",
-    "Chat", "ChatMessage", "Agreement", "ActiveToken", 
+    "Chat", "ChatMessage", "Agreement", "ActiveToken",
+    "AgreementStatusEnum", "PostTypeEnum", "StatusUserEnum", "RoleEnum",
 ]

@@ -2,46 +2,11 @@ from datetime import datetime, timezone
 from sqlmodel import Session, desc, func, select
 
 from exceptions.exceptions import PostNotFoundException
-from models import Like, Post, PostMultimedia, User, RoleEnum, City
-from models.location.state_province import StateProvince
+from models import Like, Post, PostMultimedia, User, RoleEnum
 from schemas import PostCreate, PostPatch, PostRead, PostFilters
 from exceptions import NotOwnerError
-from sqlalchemy.exc import SQLAlchemyError, NoResultFound
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload, joinedload
-
-
-def get_city_id_by_name(city_name: str, session) -> int:
-    """
-    Busca el ID de una ciudad por nombre (case-insensitive)
-    y asegura que pertenezca a la provincia 'Buenos Aires'
-    """
-    statement = (
-        select(City.id)
-        .join(StateProvince)
-        .where(
-            City.name.ilike(city_name.strip()),  # type: ignore
-            StateProvince.name.ilike("Buenos Aires")  # type: ignore
-        )
-    )
-
-    result = session.exec(statement)
-
-    try:
-        city_id: int = result.one()
-        return city_id
-    except NoResultFound:
-        raise ValueError(f"Ciudad '{city_name}' no encontrada en la provincia de Buenos Aires")
-
-
-def _resolve_display_name(post: Post) -> str:
-    """Devuelve el texto de ubicación más específico disponible para un post."""
-    if post.location_text:
-        return post.location_text
-    if post.city and post.city.state_province:
-        return f"{post.city.name}, {post.city.state_province.name}"
-    if post.city:
-        return post.city.name
-    return "Sin ubicación"
 
 
 def _resolve_username(post: Post) -> str:
@@ -52,24 +17,7 @@ def _resolve_username(post: Post) -> str:
 
 
 def create_post(session: Session, payload: PostCreate, user_id: int, file_url: str | None):
-    city_id: int | None = None
-
-    if payload.city_name:
-        try:
-            city_id = get_city_id_by_name(payload.city_name, session)
-        except ValueError:
-            # Ciudad no encontrada en Georef → continúa sin city_id
-            # El post usará location_text / coordenadas como referencia
-            city_id = None
-
-    post_data = payload.model_dump(
-        exclude={"city_name"},
-        exclude_unset=True,
-        exclude_none=False,
-    )
-    # Asignar city_id resuelto (puede ser None)
-    post_data["city_id"] = city_id
-
+    post_data = payload.model_dump(exclude_unset=True)
     post = Post(user_id=user_id, **post_data)
     session.add(post)
     session.commit()
@@ -78,57 +26,62 @@ def create_post(session: Session, payload: PostCreate, user_id: int, file_url: s
     if file_url:
         session.add(PostMultimedia(post_id=post.id, url=file_url))  # type: ignore
         session.commit()
+        session.refresh(post)
 
-    session.refresh(post)
-    return PostRead.model_validate(post)
+    validated = PostRead.model_validate(post)
+    validated = validated.model_copy(update={
+        "city_name": post.location_text or "Sin ubicación",
+        "username": _resolve_username(post),
+    })
+    return validated
 
 
-def is_liked_by_user(session: Session, post_id: int, user_id: int):
+def is_liked_by_user(session: Session, post_id: int, user_id: int) -> bool:
     like = session.exec(
-        select(Like).where(Like.post_id == post_id).where(Like.user_id == user_id)
+        select(Like).where(Like.post_id == post_id, Like.user_id == user_id)
     ).first()
     return bool(like)
 
 
 def get_posts_by_user(session: Session, user_id: int) -> list[PostRead]:
     posts = session.exec(select(Post).where(Post.user_id == user_id)).all()
-    return [PostRead.model_validate(p) for p in posts]
+    result = []
+    for post in posts:
+        validated = PostRead.model_validate(post)
+        validated = validated.model_copy(update={
+            "city_name": post.location_text or "Sin ubicación",
+            "username": _resolve_username(post),
+        })
+        result.append(validated)
+    return result
 
 
-def get_posts(session: Session, filters: PostFilters, user: User):
+def get_posts(session: Session, filters: PostFilters, user: User) -> list[PostRead]:
     conditions = []
-    skip, limit = filters.skip, filters.limit
 
     if filters.show_only_active is True:
         conditions.append(Post.is_active == True)
     elif filters.show_only_active is False:
         conditions.append(Post.is_active == False)
-    # show_only_active is None → sin filtro
 
     if filters.category:
         conditions.append(Post.category == filters.category)
 
-    if filters.city:
-        conditions.append(City.name.ilike(f"%{filters.city}%"))  # type: ignore
-
     if filters.user_id:
         conditions.append(Post.user_id == filters.user_id)
-
-    if filters.province_id:
-        conditions.append(City.state_province_id == filters.province_id)
 
     if filters.post_type_id is not None:
         conditions.append(Post.post_type_id == filters.post_type_id)
 
     if filters.keyword:
-        keyword = f"%{filters.keyword}%"
+        kw = f"%{filters.keyword}%"
         conditions.append(
-            (Post.title.ilike(keyword)) | (Post.message.ilike(keyword))  # type: ignore
+            (Post.title.ilike(kw)) | (Post.message.ilike(kw))  # type: ignore
         )
 
-    # --- Filtro geográfico por radio (Haversine via ST_Distance_Sphere) ---
-    # ST_Distance_Sphere(POINT(lon, lat), POINT(lon, lat)) devuelve metros en MySQL 5.7+
-    # Solo aplica a posts que tengan coordenadas cargadas.
+    # Filtro geográfico por radio usando ST_Distance_Sphere (MySQL 5.7+)
+    # Solo se aplica a posts que tengan coordenadas cargadas.
+    # ST_Distance_Sphere devuelve distancia en metros; radius_km * 1000 = metros.
     if filters.lat is not None and filters.lon is not None:
         radius_m = filters.radius_km * 1000
         distance_expr = func.ST_Distance_Sphere(
@@ -143,13 +96,10 @@ def get_posts(session: Session, filters: PostFilters, user: User):
         select(Post)
         .distinct(Post.id)  # type: ignore
         .options(
-            joinedload(Post.city),  # type: ignore
             joinedload(Post.user).joinedload(User.user_info),  # type: ignore
             selectinload(Post.multimedia),  # type: ignore
             selectinload(Post.likes),  # type: ignore
         )
-        # outerjoin: posts sin city_id (solo coordenadas) también se incluyen
-        .outerjoin(City, City.id == Post.city_id)  # type: ignore
         .join(User, User.id == Post.user_id)  # type: ignore
         .outerjoin(Like, Like.post_id == Post.id)  # type: ignore
     )
@@ -162,25 +112,21 @@ def get_posts(session: Session, filters: PostFilters, user: User):
     else:
         query = query.order_by(Post.created_at.desc())  # type: ignore
 
-    posts = session.exec(query.offset(skip).limit(limit)).all()
+    posts = session.exec(query.offset(filters.skip).limit(filters.limit)).all()
 
     result = []
     for post in posts:
         validated = PostRead.model_validate(post)
         validated = validated.model_copy(update={
             "likes_count": len(post.likes) if post.likes else 0,
-            "city_name": _resolve_display_name(post),
+            "city_name": post.location_text or "Sin ubicación",
             "username": _resolve_username(post),
-            "latitude": post.latitude,
-            "longitude": post.longitude,
-            "location_text": post.location_text,
         })
         result.append(validated)
-
     return result
 
 
-def get_post_by_id(session: Session, post_id) -> PostRead:
+def get_post_by_id(session: Session, post_id: int) -> PostRead:
     post = session.get(Post, post_id)
     if not post:
         raise PostNotFoundException
@@ -188,11 +134,8 @@ def get_post_by_id(session: Session, post_id) -> PostRead:
     validated = PostRead.model_validate(post)
     validated = validated.model_copy(update={
         "likes_count": len(post.likes),
-        "city_name": _resolve_display_name(post),
+        "city_name": post.location_text or "Sin ubicación",
         "username": _resolve_username(post),
-        "latitude": post.latitude,
-        "longitude": post.longitude,
-        "location_text": post.location_text,
     })
     return validated
 
@@ -207,20 +150,12 @@ def patch_post(session: Session, post_id: int, payload: PostPatch, user_id: int,
     if post.user_id != user_id:
         raise NotOwnerError("No puedes editar este post porque no eres el propietario")
 
-    # Si el patch incluye city_name, resolverlo a city_id
-    city_name = payload_data.pop("city_name", None)
-    if city_name:
-        try:
-            payload_data["city_id"] = get_city_id_by_name(city_name, session)
-        except ValueError:
-            pass  # city_name no resuelto → se mantiene el city_id previo
-
     for key, value in payload_data.items():
         setattr(post, key, value)
 
     if file_url and len(post.multimedia) > 0:
         post.multimedia[0].url = file_url
-    elif file_url and len(post.multimedia) == 0:
+    elif file_url:
         post.multimedia.append(PostMultimedia(post_id=post_id, url=file_url))
 
     post.updated_at = datetime.now(timezone.utc)
@@ -231,13 +166,12 @@ def patch_post(session: Session, post_id: int, payload: PostPatch, user_id: int,
 
 
 def delete_post(session: Session, post_id: int, user: User):
-    user_id = user.id
     post = session.get(Post, post_id)
 
     if not post or not post.is_active:
         raise PostNotFoundException("Post doesn't exist or is already deleted")
 
-    if post.user_id != user_id and user.role_id < RoleEnum.MODERATOR:
+    if post.user_id != user.id and user.role_id < RoleEnum.MODERATOR:
         raise NotOwnerError("Cannot delete, user is not owner of the post neither moderator or admin")
 
     post.is_active = False
@@ -248,8 +182,7 @@ def delete_post(session: Session, post_id: int, user: User):
 
 
 def _give_like(session: Session, post_id: int, user_id: int):
-    new_like = Like(post_id=post_id, user_id=user_id)
-    session.add(new_like)
+    session.add(Like(post_id=post_id, user_id=user_id))
 
 
 def _remove_like(session: Session, post_id: int, user_id: int):
@@ -262,15 +195,14 @@ def _remove_like(session: Session, post_id: int, user_id: int):
 
 def like_post(session: Session, post_id: int, user_id: int):
     post = session.get(Post, post_id)
-
     if not post or not post.is_active:
         raise PostNotFoundException("Post doesn't exist or is inactive")
 
     try:
-        existing_like = session.exec(
+        existing = session.exec(
             select(Like).where(Like.user_id == user_id, Like.post_id == post_id)
         ).first()
-        if existing_like:
+        if existing:
             _remove_like(session, post_id, user_id)
             detail = "like deleted"
         else:
@@ -287,7 +219,7 @@ def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10) 
     if not keyword:
         return []
 
-    query = (
+    posts = session.exec(
         select(Post)
         .where(
             Post.title.ilike(f"%{keyword}%") |  # type: ignore
@@ -295,7 +227,6 @@ def search_post(session: Session, keyword: str, skip: int = 0, limit: int = 10) 
         )
         .offset(skip)
         .limit(limit)
-    )
+    ).all()
 
-    posts = session.exec(query).all()
     return [PostRead.model_validate(p) for p in posts]

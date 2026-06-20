@@ -1,23 +1,16 @@
 from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship, Column, TEXT, Index
 from ..base import TimestampMixin
-from ..enums import PostTypeEnum
 from datetime import datetime
 
 if TYPE_CHECKING:
     from ..user.user import User
-    from ..location.city import City
     from ..core.post_type import PostType
     from .post_multimedia import PostMultimedia
     from .like import Like
     from .report import Report
     from ..chat.chat import Chat
     from ..agreement.agreement import Agreement
-
-# Post Type Ids:
-# class PostTypeEnum(IntEnum):
-#     OFERTA = 1
-#     NECESIDAD = 2
 
 
 class Post(SQLModel, TimestampMixin, table=True):
@@ -29,18 +22,15 @@ class Post(SQLModel, TimestampMixin, table=True):
     category: str = Field(max_length=100)
     post_type_id: int = Field(foreign_key="post_types.id", ondelete="RESTRICT")
     is_active: bool = Field(default=True)
-    # city_id es ahora nullable: posts nuevos pueden usar solo coordenadas
-    city_id: Optional[int] = Field(default=None, foreign_key="cities.id", ondelete="RESTRICT")
     deleted_at: Optional[datetime] = Field(default=None, index=True)
 
-    # --- Campos de ubicación por coordenadas (modelo híbrido) ---
+    # Ubicación por coordenadas
     latitude: Optional[float] = Field(default=None)
     longitude: Optional[float] = Field(default=None)
-    # Texto legible para el usuario, ej: 'Pilar, Buenos Aires' o 'Ruta 9, Km 140'
+    # Texto legible: ej. 'Pilar, Buenos Aires' o 'Ruta 9, Km 140'
     location_text: Optional[str] = Field(default=None, max_length=255)
 
     user: Optional["User"] = Relationship(back_populates="posts")
-    city: Optional["City"] = Relationship(back_populates="posts")
     post_type: Optional["PostType"] = Relationship(back_populates="posts")
     agreements: List["Agreement"] = Relationship(back_populates="post", cascade_delete=True)
     chats: List["Chat"] = Relationship(back_populates="post", cascade_delete=True)
@@ -49,9 +39,9 @@ class Post(SQLModel, TimestampMixin, table=True):
     reports: List["Report"] = Relationship(back_populates="post", cascade_delete=True)
 
     __table_args__ = (
-        Index('idx_user_city_active', 'user_id', 'city_id', 'is_active'),
+        Index('idx_user_active', 'user_id', 'is_active'),
         Index('idx_category_date', 'category', 'created_at'),
         Index('idx_type_date', 'post_type_id', 'created_at'),
-        Index('idx_active_city_type', 'is_active', 'city_id', 'post_type_id', 'created_at'),
+        Index('idx_active_type_date', 'is_active', 'post_type_id', 'created_at'),
         Index('idx_coordinates', 'latitude', 'longitude'),
     )
