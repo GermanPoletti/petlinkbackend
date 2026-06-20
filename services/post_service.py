@@ -44,7 +44,9 @@ def is_liked_by_user(session: Session, post_id: int, user_id: int) -> bool:
 
 
 def get_posts_by_user(session: Session, user_id: int) -> list[PostRead]:
-    posts = session.exec(select(Post).where(Post.user_id == user_id)).all()
+    posts = session.exec(
+        select(Post).where(Post.user_id == user_id).order_by(desc(Post.created_at))
+    ).all()
     result = []
     for post in posts:
         validated = PostRead.model_validate(post)
