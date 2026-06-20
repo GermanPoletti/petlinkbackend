@@ -29,9 +29,15 @@ class Post(SQLModel, TimestampMixin, table=True):
     category: str = Field(max_length=100)
     post_type_id: int = Field(foreign_key="post_types.id", ondelete="RESTRICT")
     is_active: bool = Field(default=True)
-    city_id: int = Field(foreign_key="cities.id", ondelete="RESTRICT")
+    # city_id es ahora nullable: posts nuevos pueden usar solo coordenadas
+    city_id: Optional[int] = Field(default=None, foreign_key="cities.id", ondelete="RESTRICT")
     deleted_at: Optional[datetime] = Field(default=None, index=True)
 
+    # --- Campos de ubicación por coordenadas (modelo híbrido) ---
+    latitude: Optional[float] = Field(default=None)
+    longitude: Optional[float] = Field(default=None)
+    # Texto legible para el usuario, ej: 'Pilar, Buenos Aires' o 'Ruta 9, Km 140'
+    location_text: Optional[str] = Field(default=None, max_length=255)
 
     user: Optional["User"] = Relationship(back_populates="posts")
     city: Optional["City"] = Relationship(back_populates="posts")
@@ -47,4 +53,5 @@ class Post(SQLModel, TimestampMixin, table=True):
         Index('idx_category_date', 'category', 'created_at'),
         Index('idx_type_date', 'post_type_id', 'created_at'),
         Index('idx_active_city_type', 'is_active', 'city_id', 'post_type_id', 'created_at'),
+        Index('idx_coordinates', 'latitude', 'longitude'),
     )

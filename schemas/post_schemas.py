@@ -1,16 +1,24 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, HttpUrl, computed_field
 from sqlmodel import Field
+
 
 class PostBase(BaseModel):
     title: str
     message: str
     category: str
     post_type_id: int
-    city_name: str
+    # city_name es opcional: puede omitirse si se envían coordenadas
+    city_name: Optional[str] = None
+    # Campos de ubicación por coordenadas
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_text: Optional[str] = None
+
+
 class PostMultimediaInput(BaseModel):
     url: HttpUrl
-
 
 
 class PostMultimediaRead(BaseModel):
@@ -33,7 +41,12 @@ class PostPatch(BaseModel):
     message: str | None = None
     category: str | None = None
     city_id: int | None = None
+    city_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    location_text: str | None = None
     multimedia: list[PostMultimediaInput] | None = None
+
 
 class LikeRead(BaseModel):
     user_id: int
@@ -43,6 +56,7 @@ class LikeRead(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
 
 class PostRead(PostBase):
     id: int
@@ -55,8 +69,10 @@ class PostRead(PostBase):
     multimedia: list[PostMultimediaRead]
     likes: list[LikeRead] = Field(default=[], exclude=True)
 
-    
-    city_name: str = "Ubicación desconocida"  # ← inyectamos manual
+    city_name: str = "Ubicación desconocida"
+    latitude: float | None = None
+    longitude: float | None = None
+    location_text: str | None = None
 
     @computed_field
     def likes_count(self) -> int:
@@ -66,16 +82,20 @@ class PostRead(PostBase):
         "from_attributes": True
     }
 
-# schemas/post.py
+
 class PostFilters(BaseModel):
     user_id: int | None = None
     category: str | None = None
     city_id: int | None = None
     city: str | None = None
     province_id: int | None = None
-    post_type_id: int | None = None        # ← NUEVO
-    keyword: str | None = None             # ← NUEVO
+    post_type_id: int | None = None
+    keyword: str | None = None
     skip: int = 0
     limit: int = 10
     most_liked: bool = False
     show_only_active: bool | None = None
+    # Filtro por radio geográfico (Haversine / ST_Distance_Sphere)
+    lat: float | None = None
+    lon: float | None = None
+    radius_km: float = 20.0
