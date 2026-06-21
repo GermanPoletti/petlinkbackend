@@ -109,10 +109,24 @@ def get_posts(session: Session, filters: PostFilters, user: User) -> list[PostRe
     if conditions:
         query = query.where(*conditions)
 
-    if filters.most_liked:
-        query = query.order_by(desc(func.count(Like.id)))  # type: ignore
+    # most_liked=True is the legacy param; sort_by takes precedence when set
+    effective_sort = 'most_liked' if filters.most_liked else filters.sort_by
+    
+    if effective_sort == 'most_liked':
+        query = (
+            query.group_by(Post.id)  # <-- ¡ESTO EVITA EL ERROR 500 EN MYSQL!
+            .order_by(desc(func.count(Like.id)))
+        )
+    elif effective_sort == 'closest' and filters.lat is not None and filters.lon is not None:
+        dist_sort = func.ST_Distance_Sphere(
+            func.POINT(filters.lon, filters.lat),
+            func.POINT(Post.longitude, Post.latitude),
+        )
+        query = query.order_by(dist_sort.asc())  # type: ignore
     else:
-        query = query.order_by(Post.created_at.desc())  # type: ignore
+        # Si elegimos ordenar por los más nuevos, agrupamos también por las dudas
+        # ya que la query tiene un join con likes que podría duplicar filas sin group_by
+        query = query.group_by(Post.id).order_by(Post.created_at.desc())  # type: ignore
 
     posts = session.exec(query.offset(filters.skip).limit(filters.limit)).all()
 

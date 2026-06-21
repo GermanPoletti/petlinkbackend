@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, HttpUrl, computed_field
 from sqlmodel import Field
 
@@ -79,7 +79,8 @@ class PostFilters(BaseModel):
     keyword: str | None = None
     skip: int = 0
     limit: int = 10
-    most_liked: bool = False
+    most_liked: bool = False  # kept for backward compat — prefer sort_by
+    sort_by: Literal['newest', 'most_liked', 'closest'] = 'newest'
     show_only_active: bool | None = None
     # Filtro geográfico por radio
     lat: float | None = None
