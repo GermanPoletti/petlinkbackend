@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from sqlmodel import Session, desc, func, select
 
 from exceptions.exceptions import PostNotFoundException
-from models import Like, Post, PostMultimedia, User, RoleEnum
+from models import Chat, Like, Post, PostMultimedia, User, RoleEnum
 from schemas import PostCreate, PostPatch, PostRead, PostFilters
 from exceptions import NotOwnerError
 from sqlalchemy.exc import SQLAlchemyError
@@ -192,6 +192,17 @@ def delete_post(session: Session, post_id: int, user: User):
 
     post.is_active = False
     post.deleted_at = datetime.now(timezone.utc)
+
+    # Close all active chats associated with this post so participants see the
+    # "post no longer active" banner and can no longer send new messages.
+    active_chats = session.exec(
+        select(Chat).where(Chat.post_id == post_id, Chat.is_active == True)  # type: ignore
+    ).all()
+    closed_at = datetime.now(timezone.utc)
+    for chat in active_chats:
+        chat.is_active = False
+        chat.closing_date = closed_at
+
     session.commit()
     session.refresh(post)
     return {"detail": "post deleted succesfully"}
