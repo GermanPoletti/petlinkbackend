@@ -1,7 +1,7 @@
 # services/chat_service.py
 from typing import List
 from sqlmodel import Session, select, or_, desc, asc  # ← ESTOS SON LOS IMPORTS QUE FALTABAN
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Modelos
 from models.chat.chat import Chat
@@ -175,7 +175,7 @@ def send_message(
         message=message_text.strip()
     )
 
-    chat.updated_at = datetime.utcnow()
+    chat.updated_at = datetime.now(timezone.utc)
 
     session.add(new_message)
     session.add(chat)
@@ -204,7 +204,7 @@ def resolve_chat(
 
     chat.status_id = AgreementStatusEnum.COMPLETED if completed else AgreementStatusEnum.REJECTED
     chat.is_active = False
-    chat.closing_date = datetime.utcnow()
+    chat.closing_date = datetime.now(timezone.utc)
     chat.resolution_note = (resolution_note or "").strip()[:500] or None
 
     if completed:
