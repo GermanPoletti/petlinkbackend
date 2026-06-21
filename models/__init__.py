@@ -12,6 +12,8 @@ from .chat.chat import Chat
 from .chat.chat_message import ChatMessage
 from .agreement.agreement import Agreement
 from .user.active_tokens import ActiveToken
+from .notification.push_token import UserPushToken
+from .notification.subscription import NotificationSubscription
 from .enums import AgreementStatusEnum, PostTypeEnum, StatusUserEnum, RoleEnum
 
 __all__ = [
@@ -19,5 +21,6 @@ __all__ = [
     "User", "UserProfiles", "TokensBlacklist",
     "Post", "PostMultimedia", "Like", "Report",
     "Chat", "ChatMessage", "Agreement", "ActiveToken",
+    "UserPushToken", "NotificationSubscription",
     "AgreementStatusEnum", "PostTypeEnum", "StatusUserEnum", "RoleEnum",
 ]

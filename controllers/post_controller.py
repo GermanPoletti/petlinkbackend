@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, UploadFile, File, Form
 import json
 
 from core.database import SessionDep
@@ -10,6 +10,7 @@ from models import Post, User, RoleEnum
 from schemas import PostCreate, PostPatch, PostFilters, PostRead
 
 from services import post_service
+from services import push_notification_service
 
 from utils.catbox_service import upload_to_catbox
 from utils.generics import count_rows
@@ -61,6 +62,7 @@ def get_posts_count(session: SessionDep, current_user: User = require_role(RoleE
 @router.post("/")
 async def create_post(
     session: SessionDep,
+    background_tasks: BackgroundTasks,
     post_data: str = Form(...),  # recibe el JSON como string
     file: UploadFile | None = File(None),
     user: User = Depends(get_current_user),
@@ -74,6 +76,17 @@ async def create_post(
         file_url = await upload_to_catbox(validated_file)  # tu función de Catbox
 
     post = post_service.create_post(session, payload, user.id, file_url) # type: ignore
+
+    background_tasks.add_task(
+        push_notification_service.notify_post_subscribers,
+        post_id=post.id,
+        post_type_id=post.post_type_id,
+        category=post.category,
+        post_author_id=user.id,
+        post_title=post.title,
+        post_lat=payload.latitude,
+        post_lon=payload.longitude,
+    )
     return post
 
 

@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Path, Query
 
 from core.database import SessionDep
 from dependencies.auth_dependencies import get_current_user
@@ -11,6 +11,7 @@ from schemas.chats_schemas import (
     ChatMessageCreate, ChatMessageRead, ChatFilters
 )
 from services import chat_service
+from services import push_notification_service
 from exceptions.exceptions import (
     NotOwnerError, PostNotFoundException,
     ChatNotFoundException, ChatAlreadyExistsException,
@@ -105,16 +106,24 @@ def get_chat_detail(
 def send_message(
     session: SessionDep,
     message_data: ChatMessageCreate,
+    background_tasks: BackgroundTasks,
     chat_id: int = Path(..., gt=0),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return chat_service.send_message(
+        msg = chat_service.send_message(
             session=session,
             chat_id=chat_id,
             sender_user_id=current_user.id, # type: ignore
             message_text=message_data.message
         )
+        background_tasks.add_task(
+            push_notification_service.notify_chat_recipient,
+            chat_id=chat_id,
+            sender_id=current_user.id,
+            message_preview=message_data.message.strip()[:100],
+        )
+        return msg
     except ChatNotFoundException:
         raise HTTPException(status_code=404, detail="Chat no encontrado")
     except ChatClosedException:
