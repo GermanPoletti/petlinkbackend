@@ -78,6 +78,7 @@ def notify_chat_recipient(
     from sqlmodel import Session
     from models.chat.chat import Chat
     from models.notification.push_token import UserPushToken
+    from models.user.user import User, UserProfiles
 
     with Session(engine) as session:
         chat = session.get(Chat, chat_id)
@@ -89,9 +90,15 @@ def notify_chat_recipient(
         if not token_row:
             return
 
+        sender_profile = session.get(UserProfiles, sender_id)
+        sender_name = getattr(sender_profile, "username", None)
+        if not sender_name:
+            sender = session.get(User, sender_id)
+            sender_name = getattr(sender, "email", "Usuario").split("@")[0]
+
         send_push(
             token=token_row.token,
-            title="Nuevo mensaje en Petlink",
+            title=sender_name,
             body=message_preview[:100],
             data={"type": "chat_message", "chat_id": chat_id},
         )
@@ -151,7 +158,7 @@ def notify_post_subscribers(
         type_label = "Oferta" if post_type_id == 1 else "Necesidad"
         send_push_bulk(
             tokens=tokens,
-            title=f"Nueva {type_label} en {category}",
+            title=f"Nueva {type_label} de {category}",
             body=post_title,
             data={"type": "new_post", "post_id": post_id, "post_type_id": post_type_id},
         )
