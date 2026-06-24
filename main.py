@@ -19,9 +19,9 @@ async def lifespan(app: FastAPI):
 
     try:
         with Session(engine) as session:
-            # Verifica que la conexión funciona
             session.exec(text("SELECT 1")) # type: ignore
             print("✅ Conexión a base de datos exitosa.")
+            admingen(session)
     except Exception as e:
         print(f"❌ Error conectando a la base de datos: {e}")
         raise e

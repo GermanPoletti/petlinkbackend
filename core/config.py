@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     GMAIL_USER: str = "petlinkproject@gmail.com"
     GMAIL_APP_PASSWORD: str = ""
-    BASE_URL: str = "http://localhost:8000"
+    BASE_URL: str = "http://192.168.15.102:8000"
 
     class Config:
         env_file = ".env"

@@ -30,7 +30,7 @@ def seed_data(session: Session):
 
     post_types = [
         PostType(id=PostTypeEnum.OFERTA, name="Oferta"),
-        PostType(id=PostTypeEnum.NECESIDAD, name="Necesidad"),
+        PostType(id=PostTypeEnum.PROPUESTAS, name="Necesidad"),
     ]
     for pt in post_types:
         if not session.get(PostType, pt.id):
@@ -45,13 +45,9 @@ def seed_data(session: Session):
         if not session.get(StatusAgreement, sa.id):
             session.add(sa)
 
-
 def admingen(session: Session):
     if not session.exec(select(User).where(User.email == "petlinkproject@gmail.com")).first():
         admin = User(
-            username="admin",
-            first_name="Admin",
-            last_name="PetLink",
             email="petlinkproject@gmail.com",
             password_hash=auth_service.encrypt_password("petlinkadmin123"),
             role_id=RoleEnum.ADMIN,

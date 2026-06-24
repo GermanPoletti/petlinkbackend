@@ -39,6 +39,7 @@ def logout(session: SessionDep, token: Annotated[str, Depends(oauth2_scheme)]):
 def register(user_data: UserCreate, session: SessionDep, background_tasks: BackgroundTasks):
     user, token_str = auth_service.register_user(user_data, session)
     link = f"{settings.BASE_URL}/auth/verify?token={token_str}"
+    print(link, " ", settings.BASE_URL)
     background_tasks.add_task(email_service.send_verification_email, user.email, link)
     return user
 
@@ -57,6 +58,7 @@ def resend_verification(
 ):
     token_str = auth_service.resend_verification(current_user, session)
     link = f"{settings.BASE_URL}/auth/verify?token={token_str}"
+    print(link, " ", settings.BASE_URL)
     background_tasks.add_task(email_service.send_verification_email, current_user.email, link)
     return {"detail": "Email de verificación enviado"}
 

@@ -77,6 +77,8 @@ class ChatRead(ChatBase):
 class ChatReadWithUser(ChatRead):
     initiator: Optional[UserRead] = None
     receiver: Optional[UserRead] = None
+    last_message: Optional["ChatMessageRead"] = None
+    unread_count: int = 0
 # ------------------------------------------------------------------
 # 4. Chat completo (con post, usuarios y mensajes) → para el detalle
 # ------------------------------------------------------------------

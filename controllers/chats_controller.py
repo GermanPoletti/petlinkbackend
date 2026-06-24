@@ -1,10 +1,12 @@
 from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Path, Query
+from sqlmodel import select, desc
 
 from core.database import SessionDep
 from dependencies.auth_dependencies import get_current_user
 from models.user.user import User
 from models.chat.chat import Chat
+from models.chat.chat_message import ChatMessage
 from models.post.post import Post
 from schemas.chats_schemas import (
     ChatCreate, ChatReadWithUser, ChatResolve, ChatRead, ChatDetailRead,
@@ -63,15 +65,45 @@ def get_my_chats(
     )
     chats_with_users = []
     for chat in chats:
-        counterpart = session.get(User, chat.receiver_id if chat.initiator_id == current_user.id else chat.initiator_id)
-        if(counterpart):
-            chat_data = ChatReadWithUser(
-                **chat.model_dump(),
-                initiator=None,
-                receiver=counterpart # type: ignore
-                )
-            chats_with_users.append(chat_data)
-        
+        counterpart_id = chat.receiver_id if chat.initiator_id == current_user.id else chat.initiator_id
+        counterpart = session.get(User, counterpart_id)
+        if not counterpart:
+            continue
+
+        last_msg = session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.chat_id == chat.id)
+            .order_by(desc(ChatMessage.created_at))
+            .limit(1)
+        ).first()
+
+        last_message = None
+        if last_msg:
+            sender = session.get(User, last_msg.sender_id)
+            sender_name = (
+                getattr(getattr(sender, "user_info", None), "username", None)
+                or getattr(sender, "email", "Usuario")
+            ) if sender else "Usuario"
+            last_message = ChatMessageRead(
+                id=last_msg.id,
+                chat_id=last_msg.chat_id,
+                sender_id=last_msg.sender_id,
+                message=last_msg.message,
+                created_at=last_msg.created_at,
+                sender_username=sender_name,
+            )
+
+        unread_count = 1 if last_msg and last_msg.sender_id != current_user.id else 0
+
+        chat_data = ChatReadWithUser(
+            **chat.model_dump(),
+            initiator=None,
+            receiver=counterpart, # type: ignore
+            last_message=last_message,
+            unread_count=unread_count,
+        )
+        chats_with_users.append(chat_data)
+
     return chats_with_users
 
 

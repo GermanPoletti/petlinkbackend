@@ -88,8 +88,8 @@ def notify_chat_recipient(
         recipient_id = chat.receiver_id if chat.initiator_id == sender_id else chat.initiator_id
         token_row = session.get(UserPushToken, recipient_id)
         if not token_row:
+            print("no hay token")
             return
-
         sender_profile = session.get(UserProfiles, sender_id)
         sender_name = getattr(sender_profile, "username", None)
         if not sender_name:
