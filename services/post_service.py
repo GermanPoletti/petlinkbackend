@@ -17,8 +17,14 @@ def _resolve_username(post: Post) -> str:
 
 
 def create_post(session: Session, payload: PostCreate, user_id: int, file_url: str | None):
+    from services.content_moderation_service import check_content
+    from fastapi import HTTPException
+    mod = check_content(payload.title, getattr(payload, "message", "") or "")
+    if mod["blocked"]:
+        raise HTTPException(status_code=400, detail=f"Publicación rechazada: {mod['reason']}")
+
     post_data = payload.model_dump(exclude_unset=True)
-    post = Post(user_id=user_id, **post_data)
+    post = Post(user_id=user_id, is_flagged=bool(mod["flagged"]), **post_data)
     session.add(post)
     session.commit()
     session.refresh(post)

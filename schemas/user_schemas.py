@@ -38,7 +38,10 @@ class UserRead(BaseModel):
     help_count: int
     role_id: int
     status_id: int
-    
+    email_verified: bool = True
+    warnings: int = 0
+    banned_until: datetime.datetime | None = None
+
     created_at: datetime.datetime
     updated_at: datetime.datetime | None = None
     deleted_at: datetime.datetime | None = None

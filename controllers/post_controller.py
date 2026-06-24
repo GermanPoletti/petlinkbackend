@@ -67,6 +67,9 @@ async def create_post(
     file: UploadFile | None = File(None),
     user: User = Depends(get_current_user),
 ):
+    if not user.email_verified:
+        raise HTTPException(status_code=403, detail="Verificá tu email antes de publicar")
+
     # Convierte el string JSON a Pydantic model
     payload = PostCreate.model_validate(json.loads(post_data))
 

@@ -4,6 +4,7 @@ from .core.post_type import PostType
 from .core.status_agreement import StatusAgreement
 from .user.user import User, UserProfiles
 from .user.tokens_blacklist import TokensBlacklist
+from .user.email_token import EmailVerificationToken
 from .post.post import Post
 from .post.post_multimedia import PostMultimedia
 from .post.like import Like
@@ -21,6 +22,6 @@ __all__ = [
     "User", "UserProfiles", "TokensBlacklist",
     "Post", "PostMultimedia", "Like", "Report",
     "Chat", "ChatMessage", "Agreement", "ActiveToken",
-    "UserPushToken", "NotificationSubscription",
+    "UserPushToken", "NotificationSubscription", "EmailVerificationToken",
     "AgreementStatusEnum", "PostTypeEnum", "StatusUserEnum", "RoleEnum",
 ]

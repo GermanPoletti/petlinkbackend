@@ -27,6 +27,9 @@ class User(SQLModel, TimestampMixin, table=True):
     status_id: int = Field(default=StatusUserEnum.ACTIVE ,foreign_key="status_users.id", ondelete="RESTRICT")
     deleted_at: datetime | None = Field(default=None, index=True)
     help_count: int = Field(default=0)
+    email_verified: bool = Field(default=False)
+    warnings: int = Field(default=0)
+    banned_until: datetime | None = Field(default=None)
 
     role: Optional["Role"] = Relationship(back_populates="users")
     status: Optional["StatusUser"] = Relationship(back_populates="users")

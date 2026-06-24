@@ -22,6 +22,7 @@ class Post(SQLModel, TimestampMixin, table=True):
     category: str = Field(max_length=100)
     post_type_id: int = Field(foreign_key="post_types.id", ondelete="RESTRICT")
     is_active: bool = Field(default=True)
+    is_flagged: bool = Field(default=False)
     deleted_at: Optional[datetime] = Field(default=None, index=True)
 
     # Ubicación por coordenadas
