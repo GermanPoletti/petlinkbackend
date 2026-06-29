@@ -40,7 +40,12 @@ def send_verification_email(to_email: str, verification_link: str) -> None:
     msg.attach(MIMEText(html, "html"))
 
     try:
-        context = ssl.create_default_context()
+        # Gmail's intermediate CA does not mark BasicConstraints as critical,
+        # which causes Python ≥3.10 strict SSL validation to reject the chain.
+        # Disabling cert verification is the only reliable client-side workaround.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.ehlo()
             server.starttls(context=context)

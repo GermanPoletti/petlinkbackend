@@ -4,67 +4,43 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ── Block list ────────────────────────────────────────────────────────────────
-# Posts matching any of these strings are rejected outright.
-_BLOCK_WORDS: list[str] = [
-    # ── Spanish profanity ─────────────────────────────────────────────────────
+# ── Profanity filter (glin-profanity) ─────────────────────────────────────────
+# Handles word-level profanity in Spanish and English, including leetspeak and
+# Unicode obfuscation variants, without maintaining a huge manual wordlist.
+try:
+    from glin_profanity import Filter as _GlinFilter
+    _profanity_filter = _GlinFilter({"languages": ["english", "spanish"]})
+    _GLIN_AVAILABLE = True
+except Exception as _import_err:
+    logger.warning("[Moderation] glin-profanity unavailable (%s) — falling back to wordlist", _import_err)
+    _GLIN_AVAILABLE = False
+
+# ── Fallback block list (used only when glin-profanity is not installed) ───────
+_FALLBACK_BLOCK_WORDS: list[str] = [
+    # Spanish profanity
     "hdp", "hijo de puta", "hija de puta", "concha tu madre", "concha de tu madre",
-    "hijo de p", "hija de p", "puta madre", "la concha",
-    "pelotudo", "pelotuda", "boludo", "boluda", "gil", "gila",
-    "forro", "forra", "culo", "culero", "culera", "mierda", "maldito", "maldita",
-    "carajo", "jodete", "vete al carajo", "que te jodan", "te cago",
-    "marica", "maricón", "maricon", "travesti",
-    "puto", "puta", "putas", "prostituta",
-    "bastardo", "bastarda", "cretino", "cretina", "imbecil", "imbécil",
-    "idióta", "idiota", "estupido", "estúpido", "estupida", "estúpida",
-    "retrasado", "retrasada",
-    # ── English profanity ─────────────────────────────────────────────────────
-    "fuck", "fucking", "fucked", "fucker", "motherfucker",
-    "shit", "shitty", "bullshit",
-    "asshole", "ass hole", "bitch", "bitches", "bastard",
-    "cock", "dick", "pussy", "cunt",
-    "nigger", "nigga", "faggot",
-    "retard", "retarded",
-    # ── Spam / scam phrases (ES) ──────────────────────────────────────────────
-    "gana dinero", "ganá dinero", "gana dinero fácil", "dinero fácil",
-    "trabaja desde casa", "trabajá desde casa",
-    "inversión rentable", "inversion rentable",
-    "haz clic aquí", "click aquí", "hace clic",
-    "gana plata", "ganá plata", "plata fácil",
-    "negocio redondo", "ganancia garantizada",
-    "sin inversión", "sin inversion",
-    "crypto", "bitcoin", "ethereum", "criptomonedas",
-    "forex", "trading automático", "trading automatico",
-    "esquema ponzi", "marketing multinivel", "multinivel",
-    "doble tu dinero", "duplica tu dinero",
-    "oportunidad única", "oportunidad unica",
-    # ── Spam / scam phrases (EN) ──────────────────────────────────────────────
-    "make money fast", "work from home", "easy money",
-    "guaranteed income", "passive income", "earn from home",
-    "click here", "limited time offer", "act now",
-    "100% free", "no investment needed",
-    "double your money", "risk free",
-    # ── Illegal animal trading (ES) ───────────────────────────────────────────
-    "precio por cachorro", "precio por gatito", "precio por perro",
-    "vendo cachorro", "vendo perro", "vendo gato", "vendo mascota",
-    "venta de cachorros", "venta de perros", "venta de gatos",
-    "en venta cachorro", "en venta perro",
-    "pago por cachorro", "pago por mascota",
-    "$ por cachorro", "usd por cachorro",
-    "raza pura en venta", "pedigree en venta",
-    "criadero de venta",
-    # ── Illegal animal trading (EN) ───────────────────────────────────────────
-    "puppy for sale", "dog for sale", "cat for sale", "kitten for sale",
-    "pet for sale", "selling puppies", "selling dogs",
-    "buy puppy", "buy dog", "buy cat",
-    # ── Violence / threats ────────────────────────────────────────────────────
-    "te voy a matar", "te voy a cagar", "te voy a romper",
-    "lo voy a matar", "los voy a matar",
-    "i will kill", "i'll kill", "gonna kill",
+    "pelotudo", "pelotuda", "boludo", "boluda", "puto", "puta",
+    "mierda", "carajo", "culo", "forro",
+    # English profanity
+    "fuck", "fucking", "shit", "asshole", "bitch",
+    "cock", "dick", "cunt", "nigger", "faggot",
+    # Illegal animal trading (ES)
+    "precio por cachorro", "vendo cachorro", "vendo perro", "venta de cachorros",
+    "pago por cachorro", "raza pura en venta", "criadero de venta",
+    # Illegal animal trading (EN)
+    "puppy for sale", "dog for sale", "cat for sale", "selling puppies",
+    # Violence / threats
+    "te voy a matar", "i will kill", "i'll kill", "gonna kill",
+    # Spam / scam
+    "gana dinero", "trabaja desde casa", "inversión rentable",
+    "make money fast", "easy money", "guaranteed income",
+    "crypto", "bitcoin", "forex", "esquema ponzi", "multinivel",
 ]
 
 # ── Flag patterns ─────────────────────────────────────────────────────────────
 # Posts matching these patterns are published but held for moderator review.
+# glin-profanity does not cover structural commercial signals (URLs, phones, etc.)
+# so these patterns remain regardless of library availability.
 _FLAG_PATTERNS: list[re.Pattern] = [
     # External URLs
     re.compile(r"https?://", re.IGNORECASE),
@@ -80,11 +56,28 @@ _FLAG_PATTERNS: list[re.Pattern] = [
     # Explicit pricing ($100+ or U$S 100+)
     re.compile(r"(\$|USD?|u\$s)\s*\d{2,}", re.IGNORECASE),
     re.compile(r"\d{3,}\s*(pesos|ARS|USD|dolares|dólares)", re.IGNORECASE),
-    # Social media handles
+    # Social media handles / platforms
     re.compile(r"@[a-zA-Z0-9_]{3,}", re.IGNORECASE),
-    # Instagram / TikTok / FB references
     re.compile(r"\b(instagram|facebook|tiktok|snapchat|twitter|x\.com)\b", re.IGNORECASE),
 ]
+
+
+def _is_profane(text: str) -> tuple[bool, str | None]:
+    """Returns (is_blocked, matched_word_or_None)."""
+    if _GLIN_AVAILABLE:
+        try:
+            if _profanity_filter.is_profane(text):
+                return True, "profanity detected"
+        except Exception as exc:
+            logger.warning("[Moderation] glin-profanity check failed: %s", exc)
+
+    # Fallback wordlist check
+    lower = text.lower()
+    for word in _FALLBACK_BLOCK_WORDS:
+        if word in lower:
+            return True, word
+
+    return False, None
 
 
 def check_content(title: str, description: str) -> dict[str, object]:
@@ -93,15 +86,15 @@ def check_content(title: str, description: str) -> dict[str, object]:
     blocked → post should be rejected outright.
     flagged → post can be published but needs moderator review.
     """
-    text = f"{title} {description}".lower()
+    combined = f"{title} {description}"
 
-    for word in _BLOCK_WORDS:
-        if word in text:
-            logger.info("[Moderation] Blocked post — matched word: %s", word)
-            return {"blocked": True, "flagged": False, "reason": f"Contenido no permitido: '{word}'"}
+    blocked, matched = _is_profane(combined)
+    if blocked:
+        logger.info("[Moderation] Blocked post — %s", matched)
+        return {"blocked": True, "flagged": False, "reason": f"Contenido no permitido: '{matched}'"}
 
     for pattern in _FLAG_PATTERNS:
-        if pattern.search(text):
+        if pattern.search(combined):
             logger.info("[Moderation] Flagged post — matched pattern: %s", pattern.pattern)
             return {"blocked": False, "flagged": True, "reason": pattern.pattern}
 
