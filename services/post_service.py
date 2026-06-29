@@ -21,7 +21,10 @@ def create_post(session: Session, payload: PostCreate, user_id: int, file_url: s
     from fastapi import HTTPException
     mod = check_content(payload.title, getattr(payload, "message", "") or "")
     if mod["blocked"]:
-        raise HTTPException(status_code=400, detail=f"Publicación rechazada: {mod['reason']}")
+        raise HTTPException(
+            status_code=422,
+            detail={"error_code": "CONTENT_MODERATION", "message": mod["reason"]},
+        )
 
     post_data = payload.model_dump(exclude_unset=True)
     post = Post(user_id=user_id, is_flagged=bool(mod["flagged"]), **post_data)
@@ -163,6 +166,9 @@ def get_post_by_id(session: Session, post_id: int) -> PostRead:
 
 
 def patch_post(session: Session, post_id: int, payload: PostPatch, user_id: int, file_url: str | None = None):
+    from services.content_moderation_service import check_content
+    from fastapi import HTTPException
+
     payload_data = payload.model_dump(exclude={"multimedia"}, exclude_unset=True)
 
     post = session.get(Post, post_id)
@@ -171,6 +177,17 @@ def patch_post(session: Session, post_id: int, payload: PostPatch, user_id: int,
 
     if post.user_id != user_id:
         raise NotOwnerError("No puedes editar este post porque no eres el propietario")
+
+    effective_title = payload_data.get("title", post.title) or ""
+    effective_message = payload_data.get("message", post.message) or ""
+    mod = check_content(effective_title, effective_message)
+    if mod["blocked"]:
+        raise HTTPException(
+            status_code=422,
+            detail={"error_code": "CONTENT_MODERATION", "message": mod["reason"]},
+        )
+    if mod["flagged"]:
+        post.is_flagged = True
 
     for key, value in payload_data.items():
         setattr(post, key, value)
