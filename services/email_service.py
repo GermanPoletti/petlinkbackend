@@ -41,7 +41,9 @@ def send_verification_email(to_email: str, verification_link: str) -> None:
 
     try:
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.ehlo()
+            server.starttls(context=context)
             server.login(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD)
             server.sendmail(settings.GMAIL_USER, to_email, msg.as_string())
         logger.info("[Email] Verificación enviada a %s", to_email)
